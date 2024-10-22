@@ -87,6 +87,7 @@ export const EditGroup = () => {
             setLoading(false)
         }
         getEmails()
+        // console.log(emailList)
 
 
     }, []);

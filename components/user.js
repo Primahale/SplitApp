@@ -14,42 +14,65 @@ API: /users/v1/register
 */
 exports.userReg = async (req, res) => {
     try {
-        //Checking email Id exist in DB
-        const user = await model.User.findOne({
-            emailId: req.body.emailId
-        })
-        //If email ID present in database thows error and retuen message
-        if (user) {
-            const err = new Error("Email Id already present please login!")
-            err.status = 400
-            throw err
-        } else {
-            //Accepts the inputs and create user model form req.body
-            var newUser = new model.User(req.body)
-            //Performing validations
-            if (validator.emailValidation(newUser.emailId) &&
-                validator.passwordValidation(newUser.password) &&
-                validator.notNull(newUser.firstName)) {
-                //Bcrypt password encription
-                const salt = await bcrypt.genSalt(10);
-                newUser.password = await bcrypt.hash(newUser.password, salt)
+        // Log the request body to verify the incoming data
+        console.log('Request Body:', req.body);
 
-                //storing user details in DB
-                var id = await model.User.create(newUser)
-                res.status(200).json({
-                    status: "Success",
-                    message: "User Registeration Success",
-                    userId: id.id
-                })
-            }
+        const { firstName, lastName, emailId, password } = req.body;
+
+        // Validate the required fields
+        if (!validator.notNull(firstName) || !validator.notNull(lastName)) {
+            return res.status(400).json({ message: 'First Name and Last Name are required.' });
         }
+
+        // Check if the email is already registered
+        const existingUser = await model.User.findOne({ emailId });
+        if (existingUser) {
+            return res.status(400).json({ message: 'Email Id already registered. Please login!' });
+        }
+
+        // Validate email and password format
+        if (!validator.emailValidation(emailId)) {
+            return res.status(400).json({ message: 'Invalid Email Format.' });
+        }
+        if (!validator.passwordValidation(password)) {
+            return res.status(400).json({ 
+                message: 'Password must be at least 8 characters, contain uppercase, lowercase, numbers, and special characters.' 
+            });
+        }
+
+        // Hash the password before storing
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Create the new user object
+        const newUser = new model.User({
+            firstName,
+            lastName,
+            emailId,
+            password: hashedPassword
+        });
+
+        // Save the user to the database
+        const savedUser = await newUser.save();
+
+        // Respond with success
+        res.status(201).json({
+            status: 'Success',
+            message: 'User Registration Successful',
+            userId: savedUser._id
+        });
+
     } catch (err) {
-        logger.error(`URL : ${req.originalUrl} | staus : ${err.status} | message: ${err.message}`)
+        // Log the error for troubleshooting
+        console.error('Error during registration:', err);
+        logger.error(`URL: ${req.originalUrl} | Status: ${err.status || 500} | Message: ${err.message}`);
+
+        // Respond with error
         res.status(err.status || 500).json({
-            message: err.message
-        })
+            message: 'Internal Server Error. Please try again later.'
+        });
     }
-}
+};
 
 /*
 User login function
@@ -92,6 +115,9 @@ exports.userLogin = async (req, res) => {
             message: err.message
         })
     }
+    console.log('Email Check:', user); // Ensure it's undefined when new
+    console.log('New User:', newUser); // Verify new user object
+
 }
 
 /*
